@@ -2,42 +2,96 @@
 import * as dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// 使用 CommonJS require 来加载包（避免 ESM exports 问题）
+// 获取当前文件目录
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// 使用 createRequire 创建 require 函数
 const require = createRequire(import.meta.url);
 
-// 直接使用 require 加载（避免 ESM exports 配置问题）
+// 尝试多种方式加载 SDK（使用直接路径绕过 exports 限制）
 let PolySDK: any;
-try {
-  const sdkModule = require('@catalyst-team/poly-sdk');
-  
-  // 尝试多种可能的导出方式
-  if (typeof sdkModule === 'function') {
-    PolySDK = sdkModule;
-  } else if (sdkModule.default) {
-    PolySDK = sdkModule.default;
-  } else if (sdkModule.PolySDK) {
-    PolySDK = sdkModule.PolySDK;
-  } else {
-    PolySDK = sdkModule;
+let loadSuccess = false;
+
+// 方法1: 尝试使用包的绝对路径
+const packagePaths = [
+  join(process.cwd(), 'node_modules', '@catalyst-team', 'poly-sdk'),
+  join(__dirname, '..', 'node_modules', '@catalyst-team', 'poly-sdk'),
+];
+
+for (const pkgPath of packagePaths) {
+  try {
+    // 先读取 package.json 获取 main 字段
+    const packageJsonPath = join(pkgPath, 'package.json');
+    const packageJson = require(packageJsonPath);
+    
+    // 尝试多个可能的入口文件
+    const possibleEntries = [
+      packageJson.main,
+      packageJson.module,
+      'index.js',
+      'dist/index.js',
+      'lib/index.js',
+      'src/index.js',
+      'dist/index.cjs',
+      'lib/index.cjs',
+    ].filter(Boolean);
+
+    for (const entry of possibleEntries) {
+      try {
+        const entryPath = join(pkgPath, entry);
+        const sdkModule = require(entryPath);
+        
+        // 尝试多种导出方式
+        PolySDK = sdkModule.default || sdkModule.PolySDK || sdkModule;
+        
+        if (PolySDK && (typeof PolySDK === 'function' || typeof PolySDK === 'object')) {
+          console.log(`✓ 成功加载 SDK (使用: ${entry})`);
+          loadSuccess = true;
+          break;
+        }
+      } catch (entryError) {
+        // 继续尝试下一个入口文件
+        continue;
+      }
+    }
+    
+    if (loadSuccess) break;
+  } catch (pathError) {
+    // 继续尝试下一个路径
+    continue;
   }
-  
-  // 验证 PolySDK 是否有效
-  if (!PolySDK || (typeof PolySDK !== 'function' && typeof PolySDK !== 'object')) {
-    throw new Error('PolySDK 未正确导出');
+}
+
+// 方法2: 如果直接路径都失败，尝试使用包名（可能会失败，但作为最后尝试）
+if (!loadSuccess) {
+  try {
+    const sdkModule = require('@catalyst-team/poly-sdk');
+    PolySDK = sdkModule.default || sdkModule.PolySDK || sdkModule;
+    if (PolySDK && (typeof PolySDK === 'function' || typeof PolySDK === 'object')) {
+      console.log('✓ 使用包名加载成功');
+      loadSuccess = true;
+    }
+  } catch (nameError) {
+    // 忽略错误，继续
   }
-} catch (error: any) {
+}
+
+// 如果所有方法都失败
+if (!loadSuccess || !PolySDK) {
   console.error('❌ 无法加载 @catalyst-team/poly-sdk');
-  console.error('错误信息:', error.message);
-  console.error('\n🔧 解决方案:');
-  console.error('1. 检查包是否正确安装:');
-  console.error('   npm list @catalyst-team/poly-sdk');
+  console.error('\n🔧 请尝试以下解决方案:');
+  console.error('1. 检查包结构:');
+  console.error('   bash scripts/check-package-structure.sh');
   console.error('2. 重新安装包:');
   console.error('   npm uninstall @catalyst-team/poly-sdk');
   console.error('   npm install @catalyst-team/poly-sdk@latest');
-  console.error('3. 检查包的导出:');
-  console.error('   node -e "const require=require(\'module\').createRequire(process.cwd()+\'/package.json\'); const sdk=require(\'@catalyst-team/poly-sdk\'); console.log(Object.keys(sdk));"');
-  throw error;
+  console.error('3. 检查包的 package.json:');
+  console.error('   cat node_modules/@catalyst-team/poly-sdk/package.json');
+  throw new Error('无法加载 PolySDK，请检查包的安装和结构');
 }
 
 // 加载环境变量
