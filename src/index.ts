@@ -125,7 +125,7 @@ interface TradingConfig {
 }
 
 class FifteenMinArbitrageBot {
-  private sdk: PolySDK;
+  private sdk: any;
   private config: TradingConfig;
   private currentMarket: any = null;
   private positions: Map<string, any> = new Map();
@@ -140,10 +140,60 @@ class FifteenMinArbitrageBot {
       throw new Error('请设置环境变量 PRIVATE_KEY');
     }
 
-    this.sdk = new PolySDK({
-      privateKey: privateKey,
-      network: process.env.NETWORK || 'polygon',
-    });
+    // 尝试多种初始化方式
+    try {
+      // 方式1: 如果 PolySDK 是构造函数
+      if (typeof PolySDK === 'function') {
+        this.sdk = new PolySDK({
+          privateKey: privateKey,
+          network: process.env.NETWORK || 'polygon',
+        });
+      } 
+      // 方式2: 如果 PolySDK 是对象，尝试使用工厂方法
+      else if (PolySDK && typeof PolySDK === 'object') {
+        // 尝试 create 方法
+        if (typeof PolySDK.create === 'function') {
+          this.sdk = PolySDK.create({
+            privateKey: privateKey,
+            network: process.env.NETWORK || 'polygon',
+          });
+        }
+        // 尝试 default 方法
+        else if (typeof PolySDK.default === 'function') {
+          this.sdk = new PolySDK.default({
+            privateKey: privateKey,
+            network: process.env.NETWORK || 'polygon',
+          });
+        }
+        // 尝试直接使用对象（如果它本身就是一个实例）
+        else if (PolySDK.init || PolySDK.initialize) {
+          const initMethod = PolySDK.init || PolySDK.initialize;
+          this.sdk = typeof initMethod === 'function' 
+            ? initMethod.call(PolySDK, { privateKey, network: process.env.NETWORK || 'polygon' })
+            : PolySDK;
+        }
+        // 如果对象本身就可以使用
+        else {
+          this.sdk = PolySDK;
+          // 尝试设置配置
+          if (typeof this.sdk.setPrivateKey === 'function') {
+            this.sdk.setPrivateKey(privateKey);
+          }
+          if (typeof this.sdk.setNetwork === 'function') {
+            this.sdk.setNetwork(process.env.NETWORK || 'polygon');
+          }
+        }
+      } else {
+        throw new Error('PolySDK 格式不正确，既不是构造函数也不是对象');
+      }
+    } catch (error: any) {
+      console.error('❌ 初始化 SDK 失败:', error.message);
+      console.error('PolySDK 类型:', typeof PolySDK);
+      if (PolySDK && typeof PolySDK === 'object') {
+        console.error('PolySDK 键:', Object.keys(PolySDK));
+      }
+      throw new Error(`无法初始化 SDK: ${error.message}`);
+    }
   }
 
   /**
