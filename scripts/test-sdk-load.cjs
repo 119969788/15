@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// 测试 SDK 加载和初始化
+// 测试 SDK 加载和初始化 (CommonJS 版本)
 const { createRequire } = require('module');
 const { join } = require('path');
 const path = require('path');
@@ -47,6 +47,15 @@ try {
     if (PolySDK.default && typeof PolySDK.default === 'function') {
       console.log('✓ 找到 PolySDK.default 构造函数');
     }
+    if (typeof PolySDK.create === 'function') {
+      console.log('✓ 找到 PolySDK.create 工厂方法');
+    }
+    if (typeof PolySDK.init === 'function') {
+      console.log('✓ 找到 PolySDK.init 初始化方法');
+    }
+    if (typeof PolySDK.initialize === 'function') {
+      console.log('✓ 找到 PolySDK.initialize 初始化方法');
+    }
   }
   
   // 尝试初始化（使用测试私钥）
@@ -67,12 +76,24 @@ try {
           network: 'polygon'
         });
         console.log('✓ 使用 PolySDK.create() 初始化成功');
+        console.log('实例类型:', typeof instance);
+        console.log('实例方法:', Object.keys(instance).slice(0, 10));
+      } else if (typeof PolySDK.default === 'function') {
+        const instance = new PolySDK.default({
+          privateKey: '0x0000000000000000000000000000000000000000000000000000000000000000',
+          network: 'polygon'
+        });
+        console.log('✓ 使用 new PolySDK.default() 初始化成功');
+        console.log('实例类型:', typeof instance);
+        console.log('实例方法:', Object.keys(instance).slice(0, 10));
       } else {
         console.log('⚠️  无法找到初始化方法');
+        console.log('可用的方法:', Object.keys(PolySDK).filter(k => typeof PolySDK[k] === 'function'));
       }
     }
   } catch (initError) {
     console.log('❌ 初始化失败:', initError.message);
+    console.log('错误堆栈:', initError.stack);
   }
   
 } catch (error) {

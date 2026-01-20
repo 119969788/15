@@ -65,7 +65,7 @@ npm run dev
 如果仍然失败，运行测试脚本查看 SDK 的实际结构：
 
 ```bash
-node scripts/test-sdk-load.js
+node scripts/test-sdk-load.cjs
 ```
 
 这会显示：
