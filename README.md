@@ -104,6 +104,38 @@ const config: TradingConfig = {
 - `ethers` - 以太坊交互
 - `dotenv` - 环境变量管理
 
+## 服务器部署
+
+详细的服务器部署教程请参考：[SERVER_DEPLOY.md](SERVER_DEPLOY.md)
+
+### 快速部署
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/119969788/15.git
+cd 15
+
+# 2. 运行部署脚本
+bash scripts/deploy.sh
+
+# 3. 查看状态
+pm2 status
+pm2 logs 15min-arbitrage
+```
+
+### 更新代码
+
+```bash
+bash scripts/update.sh
+```
+
+## 文档
+
+- [快速开始](QUICKSTART.md) - 5分钟快速上手
+- [使用说明](USAGE.md) - 详细使用指南
+- [环境配置](ENV_SETUP.md) - 环境变量配置
+- [服务器部署](SERVER_DEPLOY.md) - 服务器安装详细教程
+
 ## 参考
 
 - [poly-sdk GitHub](https://github.com/cyl19970726/poly-sdk)
