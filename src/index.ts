@@ -46,10 +46,28 @@ for (const pkgPath of packagePaths) {
         const sdkModule = require(entryPath);
         
         // 尝试多种导出方式
-        PolySDK = sdkModule.default || sdkModule.PolySDK || sdkModule;
+        let candidate = sdkModule.default || sdkModule.PolySDK || sdkModule;
         
-        if (PolySDK && (typeof PolySDK === 'function' || typeof PolySDK === 'object')) {
+        // 如果 candidate 是对象，尝试从中获取构造函数
+        if (candidate && typeof candidate === 'object' && !(candidate instanceof Function)) {
+          // 尝试从对象中获取 PolySDK 类
+          if (candidate.PolySDK && typeof candidate.PolySDK === 'function') {
+            candidate = candidate.PolySDK;
+          } else if (candidate.default && typeof candidate.default === 'function') {
+            candidate = candidate.default;
+          }
+        }
+        
+        // 验证是否是构造函数
+        if (candidate && typeof candidate === 'function') {
+          PolySDK = candidate;
           console.log(`✓ 成功加载 SDK (使用: ${entry})`);
+          loadSuccess = true;
+          break;
+        } else if (candidate && typeof candidate === 'object') {
+          // 如果仍然是对象，保存它，可能是一个工厂函数或需要不同的使用方式
+          PolySDK = candidate;
+          console.log(`✓ 成功加载 SDK 对象 (使用: ${entry})`);
           loadSuccess = true;
           break;
         }
