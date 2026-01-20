@@ -1,6 +1,24 @@
-import { PolySDK } from '@catalyst-team/poly-sdk';
+// 兼容多种导入方式
 import * as dotenv from 'dotenv';
 import { ethers } from 'ethers';
+
+// 使用命名空间导入，兼容不同的导出方式
+import * as PolySDKModule from '@catalyst-team/poly-sdk';
+
+// 尝试获取 PolySDK 类（支持多种导出方式）
+// 优先尝试: default -> PolySDK -> 整个模块
+const PolySDK = (PolySDKModule as any).default || 
+                (PolySDKModule as any).PolySDK || 
+                (PolySDKModule as any);
+
+if (!PolySDK || typeof PolySDK !== 'function') {
+  console.error('错误: 无法从 @catalyst-team/poly-sdk 导入 PolySDK');
+  console.error('请运行以下命令检查包的导出:');
+  console.error('  node scripts/check-import.js');
+  console.error('或者:');
+  console.error('  node -e "console.log(require(\'@catalyst-team/poly-sdk\'))"');
+  throw new Error('无法导入 PolySDK。请检查包的安装和导出方式。');
+}
 
 // 加载环境变量
 dotenv.config();
