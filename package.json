@@ -1,0 +1,31 @@
+{
+  "name": "15min-arbitrage-bot",
+  "version": "1.0.0",
+  "description": "15分钟市场套利程序 - 赔率80买90卖",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "example": "tsx src/index.ts"
+  },
+  "keywords": [
+    "polymarket",
+    "arbitrage",
+    "trading",
+    "15min"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@catalyst-team/poly-sdk": "^0.3.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^5.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
