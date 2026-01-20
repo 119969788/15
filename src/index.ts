@@ -5,35 +5,39 @@ import { createRequire } from 'module';
 
 // 使用 CommonJS require 来加载包（避免 ESM exports 问题）
 const require = createRequire(import.meta.url);
-let PolySDK: any;
 
+// 直接使用 require 加载（避免 ESM exports 配置问题）
+let PolySDK: any;
 try {
-  // 尝试使用 require 加载（兼容性更好）
   const sdkModule = require('@catalyst-team/poly-sdk');
-  PolySDK = sdkModule.default || sdkModule.PolySDK || sdkModule;
   
-  // 如果 require 返回的是函数，直接使用
+  // 尝试多种可能的导出方式
   if (typeof sdkModule === 'function') {
     PolySDK = sdkModule;
+  } else if (sdkModule.default) {
+    PolySDK = sdkModule.default;
+  } else if (sdkModule.PolySDK) {
+    PolySDK = sdkModule.PolySDK;
+  } else {
+    PolySDK = sdkModule;
   }
-} catch (requireError) {
-  // 如果 require 失败，尝试动态 import
-  try {
-    const sdkModule = await import('@catalyst-team/poly-sdk');
-    PolySDK = sdkModule.default || (sdkModule as any).PolySDK || sdkModule;
-  } catch (importError) {
-    console.error('错误: 无法加载 @catalyst-team/poly-sdk');
-    console.error('Require 错误:', requireError.message);
-    console.error('Import 错误:', importError);
-    console.error('\n请尝试:');
-    console.error('1. 重新安装: npm uninstall @catalyst-team/poly-sdk && npm install @catalyst-team/poly-sdk@latest');
-    console.error('2. 检查包: node -e "console.log(require(\'@catalyst-team/poly-sdk\'))"');
-    throw new Error('无法加载 PolySDK');
+  
+  // 验证 PolySDK 是否有效
+  if (!PolySDK || (typeof PolySDK !== 'function' && typeof PolySDK !== 'object')) {
+    throw new Error('PolySDK 未正确导出');
   }
-}
-
-if (!PolySDK || (typeof PolySDK !== 'function' && typeof PolySDK !== 'object')) {
-  throw new Error('PolySDK 未正确加载。请检查包的安装。');
+} catch (error: any) {
+  console.error('❌ 无法加载 @catalyst-team/poly-sdk');
+  console.error('错误信息:', error.message);
+  console.error('\n🔧 解决方案:');
+  console.error('1. 检查包是否正确安装:');
+  console.error('   npm list @catalyst-team/poly-sdk');
+  console.error('2. 重新安装包:');
+  console.error('   npm uninstall @catalyst-team/poly-sdk');
+  console.error('   npm install @catalyst-team/poly-sdk@latest');
+  console.error('3. 检查包的导出:');
+  console.error('   node -e "const require=require(\'module\').createRequire(process.cwd()+\'/package.json\'); const sdk=require(\'@catalyst-team/poly-sdk\'); console.log(Object.keys(sdk));"');
+  throw error;
 }
 
 // 加载环境变量
