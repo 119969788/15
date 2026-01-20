@@ -1,23 +1,39 @@
 // 兼容多种导入方式
 import * as dotenv from 'dotenv';
 import { ethers } from 'ethers';
+import { createRequire } from 'module';
 
-// 使用命名空间导入，兼容不同的导出方式
-import * as PolySDKModule from '@catalyst-team/poly-sdk';
+// 使用 CommonJS require 来加载包（避免 ESM exports 问题）
+const require = createRequire(import.meta.url);
+let PolySDK: any;
 
-// 尝试获取 PolySDK 类（支持多种导出方式）
-// 优先尝试: default -> PolySDK -> 整个模块
-const PolySDK = (PolySDKModule as any).default || 
-                (PolySDKModule as any).PolySDK || 
-                (PolySDKModule as any);
+try {
+  // 尝试使用 require 加载（兼容性更好）
+  const sdkModule = require('@catalyst-team/poly-sdk');
+  PolySDK = sdkModule.default || sdkModule.PolySDK || sdkModule;
+  
+  // 如果 require 返回的是函数，直接使用
+  if (typeof sdkModule === 'function') {
+    PolySDK = sdkModule;
+  }
+} catch (requireError) {
+  // 如果 require 失败，尝试动态 import
+  try {
+    const sdkModule = await import('@catalyst-team/poly-sdk');
+    PolySDK = sdkModule.default || (sdkModule as any).PolySDK || sdkModule;
+  } catch (importError) {
+    console.error('错误: 无法加载 @catalyst-team/poly-sdk');
+    console.error('Require 错误:', requireError.message);
+    console.error('Import 错误:', importError);
+    console.error('\n请尝试:');
+    console.error('1. 重新安装: npm uninstall @catalyst-team/poly-sdk && npm install @catalyst-team/poly-sdk@latest');
+    console.error('2. 检查包: node -e "console.log(require(\'@catalyst-team/poly-sdk\'))"');
+    throw new Error('无法加载 PolySDK');
+  }
+}
 
-if (!PolySDK || typeof PolySDK !== 'function') {
-  console.error('错误: 无法从 @catalyst-team/poly-sdk 导入 PolySDK');
-  console.error('请运行以下命令检查包的导出:');
-  console.error('  node scripts/check-import.js');
-  console.error('或者:');
-  console.error('  node -e "console.log(require(\'@catalyst-team/poly-sdk\'))"');
-  throw new Error('无法导入 PolySDK。请检查包的安装和导出方式。');
+if (!PolySDK || (typeof PolySDK !== 'function' && typeof PolySDK !== 'object')) {
+  throw new Error('PolySDK 未正确加载。请检查包的安装。');
 }
 
 // 加载环境变量
