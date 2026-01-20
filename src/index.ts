@@ -201,11 +201,67 @@ class FifteenMinArbitrageBot {
    */
   async findActiveMarket(): Promise<any> {
     try {
-      // 搜索15分钟市场
-      const markets = await this.sdk.gammaApi.searchMarkets({
-        query: `${this.config.underlying} ${this.config.duration}`,
-        limit: 50,
-      });
+      // 检查 SDK 结构
+      if (!this.sdk) {
+        throw new Error('SDK 未初始化');
+      }
+
+      // 尝试多种 API 访问方式
+      let markets: any[] = [];
+      
+      // 方式1: this.sdk.gammaApi.searchMarkets
+      if (this.sdk.gammaApi && typeof this.sdk.gammaApi.searchMarkets === 'function') {
+        markets = await this.sdk.gammaApi.searchMarkets({
+          query: `${this.config.underlying} ${this.config.duration}`,
+          limit: 50,
+        });
+      }
+      // 方式2: this.sdk.searchMarkets
+      else if (typeof this.sdk.searchMarkets === 'function') {
+        markets = await this.sdk.searchMarkets({
+          query: `${this.config.underlying} ${this.config.duration}`,
+          limit: 50,
+        });
+      }
+      // 方式3: this.sdk.api.searchMarkets
+      else if (this.sdk.api && typeof this.sdk.api.searchMarkets === 'function') {
+        markets = await this.sdk.api.searchMarkets({
+          query: `${this.config.underlying} ${this.config.duration}`,
+          limit: 50,
+        });
+      }
+      // 方式4: this.sdk.markets.search
+      else if (this.sdk.markets && typeof this.sdk.markets.search === 'function') {
+        markets = await this.sdk.markets.search({
+          query: `${this.config.underlying} ${this.config.duration}`,
+          limit: 50,
+        });
+      }
+      // 方式5: 直接调用方法
+      else if (typeof this.sdk.getMarkets === 'function') {
+        const allMarkets = await this.sdk.getMarkets();
+        // 手动过滤
+        markets = allMarkets.filter((m: any) => {
+          const isActive = m.active && !m.resolved;
+          const is15m = m.duration === this.config.duration || 
+                       m.question?.includes('15m') ||
+                       m.question?.includes('15分钟');
+          const isUnderlying = m.underlying?.toUpperCase() === this.config.underlying.toUpperCase();
+          return isActive && is15m && isUnderlying;
+        }).slice(0, 50);
+      }
+      else {
+        // 调试信息
+        console.error('❌ 无法找到搜索市场的方法');
+        console.error('SDK 结构:', Object.keys(this.sdk));
+        if (this.sdk.gammaApi) {
+          console.error('gammaApi 结构:', Object.keys(this.sdk.gammaApi));
+        }
+        if (this.sdk.api) {
+          console.error('api 结构:', Object.keys(this.sdk.api));
+        }
+        throw new Error('SDK 中没有找到搜索市场的方法');
+      }
 
       // 筛选出活跃的15分钟市场
       const activeMarkets = markets.filter((market: any) => {
@@ -337,28 +393,54 @@ class FifteenMinArbitrageBot {
       console.log(`📈 执行买入: Token=${tokenId}, 价格=${this.config.buyPrice}, 数量=${amount}`);
 
       // 创建限价买单
-      // 注意：根据poly-sdk的实际API调整参数
-      const order = await this.sdk.trading.createLimitOrder({
-        tokenId: tokenId,
-        side: 'BUY' as any,
-        price: this.config.buyPrice.toString(),
-        size: amount.toString(),
-        expiration: Math.floor(Date.now() / 1000) + 300, // 5分钟后过期
-      }).catch(async (err: any) => {
-        // 如果createLimitOrder失败，尝试使用其他方法
-        console.log('尝试使用替代方法创建订单...');
-        try {
-          // 使用SDK的placeOrder方法（如果存在）
-          return await (this.sdk as any).placeOrder?.({
-            tokenId: tokenId,
-            side: 'BUY',
-            price: this.config.buyPrice,
-            amount: amount,
-          });
-        } catch (e) {
-          throw err;
+      // 尝试多种方式创建订单
+      let order: any = null;
+      
+      // 方式1: this.sdk.trading.createLimitOrder
+      if (this.sdk.trading && typeof this.sdk.trading.createLimitOrder === 'function') {
+        order = await this.sdk.trading.createLimitOrder({
+          tokenId: tokenId,
+          side: 'BUY' as any,
+          price: this.config.buyPrice.toString(),
+          size: amount.toString(),
+          expiration: Math.floor(Date.now() / 1000) + 300,
+        });
+      }
+      // 方式2: this.sdk.createOrder
+      else if (typeof this.sdk.createOrder === 'function') {
+        order = await this.sdk.createOrder({
+          tokenId: tokenId,
+          side: 'BUY',
+          price: this.config.buyPrice,
+          size: amount,
+        });
+      }
+      // 方式3: this.sdk.placeOrder
+      else if (typeof this.sdk.placeOrder === 'function') {
+        order = await this.sdk.placeOrder({
+          tokenId: tokenId,
+          side: 'BUY',
+          price: this.config.buyPrice,
+          amount: amount,
+        });
+      }
+      // 方式4: this.sdk.trading.placeOrder
+      else if (this.sdk.trading && typeof this.sdk.trading.placeOrder === 'function') {
+        order = await this.sdk.trading.placeOrder({
+          tokenId: tokenId,
+          side: 'BUY',
+          price: this.config.buyPrice,
+          size: amount,
+        });
+      }
+      else {
+        console.error('❌ 无法找到创建订单的方法');
+        console.error('SDK 结构:', Object.keys(this.sdk));
+        if (this.sdk.trading) {
+          console.error('trading 结构:', Object.keys(this.sdk.trading));
         }
-      });
+        throw new Error('SDK 中没有找到创建订单的方法');
+      }
 
       if (order && order.orderId) {
         console.log(`✅ 买入订单已提交: ${order.orderId}`);
@@ -434,8 +516,19 @@ class FifteenMinArbitrageBot {
   async checkPositions(): Promise<void> {
     try {
       for (const [orderId, position] of this.positions.entries()) {
-        // 检查订单状态
-        const orderStatus = await this.sdk.trading.getOrderStatus(orderId);
+        // 检查订单状态 - 尝试多种方式
+        let orderStatus: any = null;
+        
+        if (this.sdk.trading && typeof this.sdk.trading.getOrderStatus === 'function') {
+          orderStatus = await this.sdk.trading.getOrderStatus(orderId);
+        } else if (typeof this.sdk.getOrderStatus === 'function') {
+          orderStatus = await this.sdk.getOrderStatus(orderId);
+        } else if (this.sdk.trading && typeof this.sdk.trading.getOrder === 'function') {
+          orderStatus = await this.sdk.trading.getOrder(orderId);
+        } else {
+          // 如果无法检查状态，跳过
+          continue;
+        }
         
         if (orderStatus?.status === 'FILLED') {
           console.log(`✅ 订单 ${orderId} 已成交`);
